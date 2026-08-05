@@ -1,0 +1,47 @@
+[
+  {
+    "id": "remington",
+    "name": "Ремингтон №5",
+    "description": "Классический щёлкающий звук американской машинки 1920-х",
+    "premium": false,
+    "basePitch": 1.0,
+    "noiseAmount": 0.35,
+    "clickSharpness": 0.8
+  },
+  {
+    "id": "underwood",
+    "name": "Андервуд",
+    "description": "Глухой и тяжёлый удар клавиш",
+    "premium": false,
+    "basePitch": 0.85,
+    "noiseAmount": 0.45,
+    "clickSharpness": 0.55
+  },
+  {
+    "id": "hermes",
+    "name": "Гермес Бэби",
+    "description": "Лёгкая портативная машинка с звонким откликом",
+    "premium": false,
+    "basePitch": 1.25,
+    "noiseAmount": 0.25,
+    "clickSharpness": 0.95
+  },
+  {
+    "id": "olivetti",
+    "name": "Оливетти Леттера 22",
+    "description": "Легендарный итальянский звук — премиум",
+    "premium": true,
+    "basePitch": 1.1,
+    "noiseAmount": 0.3,
+    "clickSharpness": 0.7
+  },
+  {
+    "id": "adler",
+    "name": "Адлер Габриэле 25",
+    "description": "Немецкая точность и бархатный удар — премиум",
+    "premium": true,
+    "basePitch": 0.95,
+    "noiseAmount": 0.4,
+    "clickSharpness": 0.65
+  }
+]

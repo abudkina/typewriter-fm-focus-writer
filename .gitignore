@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+test-results
+playwright-report
+blob-report
+.DS_Store
+*.local
+.vite
+.cache
+docs/lighthouse.json
+docs/lighthouse-desktop.json
