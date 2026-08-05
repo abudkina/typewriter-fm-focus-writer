@@ -1,0 +1,77 @@
+[
+  {
+    "id": "classic",
+    "name": "Классика",
+    "description": "Тёплый стол и кремовая бумага",
+    "vars": {
+      "--bg-deep": "#1a1612",
+      "--bg-panel": "#241e18",
+      "--paper": "#f3ead7",
+      "--paper-edge": "#d4c4a8",
+      "--ink": "#2a2118",
+      "--accent": "#a67c52",
+      "--accent-hot": "#c4894a",
+      "--border": "rgba(166, 124, 82, 0.35)"
+    }
+  },
+  {
+    "id": "north",
+    "name": "Северная ночь",
+    "description": "Холодный графит и льдистая бумага",
+    "vars": {
+      "--bg-deep": "#0e1418",
+      "--bg-panel": "#162028",
+      "--paper": "#e6eef2",
+      "--paper-edge": "#b8c8d0",
+      "--ink": "#1a2830",
+      "--accent": "#5a8a9a",
+      "--accent-hot": "#7ab0c0",
+      "--border": "rgba(90, 138, 154, 0.4)"
+    }
+  },
+  {
+    "id": "forest",
+    "name": "Чернильный лес",
+    "description": "Тёмно-зелёный кабинет, мягкая бумага",
+    "vars": {
+      "--bg-deep": "#101612",
+      "--bg-panel": "#1a2420",
+      "--paper": "#e8ebe0",
+      "--paper-edge": "#c2c8b4",
+      "--ink": "#1c2a20",
+      "--accent": "#6b8f6a",
+      "--accent-hot": "#8fb88a",
+      "--border": "rgba(107, 143, 106, 0.4)"
+    }
+  },
+  {
+    "id": "ember",
+    "name": "Уголь и янтарь",
+    "description": "Угольный фон, янтарный акцент",
+    "vars": {
+      "--bg-deep": "#12100e",
+      "--bg-panel": "#1e1a16",
+      "--paper": "#efe6d4",
+      "--paper-edge": "#c9b896",
+      "--ink": "#22180e",
+      "--accent": "#c47a2c",
+      "--accent-hot": "#e09a3c",
+      "--border": "rgba(196, 122, 44, 0.4)"
+    }
+  },
+  {
+    "id": "slate",
+    "name": "Сланцевая",
+    "description": "Светлая панель и строгая бумага",
+    "vars": {
+      "--bg-deep": "#2a2e32",
+      "--bg-panel": "#3a4046",
+      "--paper": "#f7f5f0",
+      "--paper-edge": "#d0cdc4",
+      "--ink": "#1e2226",
+      "--accent": "#8a9098",
+      "--accent-hot": "#b0b6be",
+      "--border": "rgba(176, 182, 190, 0.45)"
+    }
+  }
+]

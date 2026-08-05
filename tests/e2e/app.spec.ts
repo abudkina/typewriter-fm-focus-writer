@@ -82,6 +82,27 @@ test.describe('Typewriter.fm Focus Writer', () => {
     await expect(page.locator('#toast')).toContainText(/пуст/i);
   });
 
+  test('открывает статистику письма', async ({ page }) => {
+    const editor = page.getByLabel('Основное поле ввода текста');
+    await editor.fill('Быстрый набор текста для проверки');
+    await page.locator('#btn-stats').click();
+    await expect(page.getByRole('heading', { name: 'Статистика письма' })).toBeVisible();
+    await expect(page.locator('#stats-words-now')).not.toHaveText('0');
+    await page.locator('#stats-reset').click();
+    await expect(page.locator('#stats-chars-typed')).toHaveText('0');
+    await page.locator('#stats-close').click();
+    await expect(page.locator('#modal-stats')).toBeHidden();
+  });
+
+  test('выбирает тему оформления', async ({ page }) => {
+    await page.locator('#btn-themes').click();
+    await expect(page.getByRole('heading', { name: 'Библиотека тем оформления' })).toBeVisible();
+    await page.locator('[data-theme-id="north"]').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'north');
+    await page.locator('#themes-close').click();
+    await expect(page.locator('#modal-themes')).toBeHidden();
+  });
+
   test('мобильная ширина 320px', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
     await expect(page.getByLabel('Основное поле ввода текста')).toBeVisible();

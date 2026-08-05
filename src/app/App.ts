@@ -3,6 +3,8 @@ import { PomodoroTimer } from '../modules/pomodoro/PomodoroTimer';
 import { PremiumService } from '../modules/premium/PremiumService';
 import { storage } from '../modules/storage/StorageService';
 import { StatsWorkerClient } from '../modules/stats/StatsWorkerClient';
+import { WritingSessionStats } from '../modules/stats/WritingSessionStats';
+import { ThemeService } from '../modules/themes/ThemeService';
 import { applyTypeShake, createInkTexture } from '../modules/effects/VisualEffects';
 import { logger } from '../utils/logger';
 import { toUserMessage } from '../utils/errors';
@@ -20,6 +22,7 @@ interface AppSettings {
   effects: boolean;
   workMinutes: number;
   breakMinutes: number;
+  themeId: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -30,6 +33,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   effects: true,
   workMinutes: 25,
   breakMinutes: 5,
+  themeId: 'classic',
 };
 
 /**
@@ -41,9 +45,12 @@ export class App {
   private premium = new PremiumService();
   private pomodoro = new PomodoroTimer();
   private stats = new StatsWorkerClient();
+  private session = new WritingSessionStats();
+  private themes = new ThemeService();
   private settings: AppSettings;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  private statsUiTimer: ReturnType<typeof setInterval> | null = null;
 
   private editor!: HTMLTextAreaElement;
   private wordEl!: HTMLElement;
@@ -77,6 +84,7 @@ export class App {
       this.pomoEl.textContent = `${PomodoroTimer.format(state.remainingMs)} · ${label}`;
     });
     this.bindEvents();
+    this.applyStoredTheme();
     this.runPaperIntro();
     // Звук и текстура — только после первого жеста (не блокирует Lighthouse TBT)
     const unlockHeavy = () => {
@@ -132,6 +140,8 @@ export class App {
 
         <div class="toolbar-group">
           <button type="button" id="btn-effects" aria-label="Визуальные эффекты" aria-pressed="true">Эффекты</button>
+          <button type="button" id="btn-stats" aria-label="Статистика письма">Статистика</button>
+          <button type="button" id="btn-themes" aria-label="Библиотека тем оформления">Темы</button>
           <label class="file-btn" aria-label="Импорт текстового файла">
             Импорт
             <input type="file" id="file-import" accept=".txt,.md,.markdown,.text,text/plain,text/markdown" />
@@ -198,6 +208,54 @@ export class App {
           <div class="modal-actions">
             <button type="button" id="link-cancel" aria-label="Отменить вставку ссылки">Отмена</button>
             <button type="button" id="link-ok" aria-label="Вставить ссылку">Вставить</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" id="modal-stats" role="dialog" aria-modal="true" aria-labelledby="stats-title" hidden>
+        <div class="modal modal-wide">
+          <h2 id="stats-title">Статистика письма</h2>
+          <p>Показатели текущей сессии: скорость и время за компьютером.</p>
+          <dl class="stats-grid" aria-live="polite">
+            <div>
+              <dt>Время сессии</dt>
+              <dd id="stats-elapsed">00:00</dd>
+            </div>
+            <div>
+              <dt>Активное время</dt>
+              <dd id="stats-active">00:00</dd>
+            </div>
+            <div>
+              <dt>Скорость (слов/мин)</dt>
+              <dd id="stats-wpm">0</dd>
+            </div>
+            <div>
+              <dt>Скорость (симв./мин)</dt>
+              <dd id="stats-cpm">0</dd>
+            </div>
+            <div>
+              <dt>Набрано символов</dt>
+              <dd id="stats-chars-typed">0</dd>
+            </div>
+            <div>
+              <dt>Слов сейчас</dt>
+              <dd id="stats-words-now">0</dd>
+            </div>
+          </dl>
+          <div class="modal-actions">
+            <button type="button" id="stats-reset" aria-label="Сбросить статистику сессии">Сбросить сессию</button>
+            <button type="button" id="stats-close" aria-label="Закрыть статистику письма">Закрыть</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" id="modal-themes" role="dialog" aria-modal="true" aria-labelledby="themes-title" hidden>
+        <div class="modal modal-wide">
+          <h2 id="themes-title">Библиотека тем оформления</h2>
+          <p>Выберите атмосферу стола и бумаги. Тема сохраняется на этом устройстве.</p>
+          <div class="theme-grid" id="theme-grid" role="listbox" aria-label="Список тем оформления"></div>
+          <div class="modal-actions">
+            <button type="button" id="themes-close" aria-label="Закрыть библиотеку тем">Закрыть</button>
           </div>
         </div>
       </div>
@@ -274,6 +332,7 @@ export class App {
       const doc = await storage.loadDocument(DOC_ID);
       if (doc?.content) {
         this.editor.value = doc.content;
+        this.session.seedText(doc.content);
         await this.refreshStats();
       }
     } catch (err) {
@@ -357,6 +416,8 @@ export class App {
     this.must('#btn-export').addEventListener('click', () => this.onExport());
     this.must('#btn-link').addEventListener('click', () => this.openModal('modal-link'));
     this.must('#btn-premium').addEventListener('click', () => this.openModal('modal-premium'));
+    this.must('#btn-stats').addEventListener('click', () => this.openModal('modal-stats'));
+    this.must('#btn-themes').addEventListener('click', () => this.openModal('modal-themes'));
 
     this.must('#btn-pomo-start').addEventListener('click', () => {
       this.pomodoro.start();
@@ -375,12 +436,22 @@ export class App {
     this.must('#premium-toggle').addEventListener('click', () => this.togglePremium());
     this.must('#link-cancel').addEventListener('click', () => this.closeModal('modal-link'));
     this.must('#link-ok').addEventListener('click', () => this.insertLink());
+    this.must('#stats-close').addEventListener('click', () => this.closeModal('modal-stats'));
+    this.must('#stats-reset').addEventListener('click', () => {
+      this.session.reset(Date.now(), true);
+      this.session.recordText(this.editor.value);
+      this.refreshSessionUi();
+      this.showToast('Статистика сессии сброшена');
+    });
+    this.must('#themes-close').addEventListener('click', () => this.closeModal('modal-themes'));
 
     // Закрытие модалок по Escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.closeModal('modal-premium');
         this.closeModal('modal-link');
+        this.closeModal('modal-stats');
+        this.closeModal('modal-themes');
       }
     });
 
@@ -408,6 +479,10 @@ export class App {
   }
 
   private onInput(): void {
+    this.session.recordText(this.editor.value);
+    if (this.must('#modal-stats').classList.contains('is-open')) {
+      this.refreshSessionUi();
+    }
     void this.refreshStats();
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => void this.saveDocument(), 600);
@@ -542,6 +617,86 @@ export class App {
     btn.textContent = this.premium.isActive() ? 'Отключить' : 'Оформить';
   }
 
+  private applyStoredTheme(): void {
+    try {
+      const id = this.settings.themeId || 'classic';
+      this.themes.apply(id);
+    } catch {
+      this.themes.apply('classic');
+      this.settings.themeId = 'classic';
+    }
+  }
+
+  private renderThemeGrid(): void {
+    const grid = this.must('#theme-grid');
+    const current = this.themes.getCurrentId();
+    grid.innerHTML = this.themes
+      .list()
+      .map((t) => {
+        const selected = t.id === current;
+        return `
+          <button
+            type="button"
+            class="theme-card${selected ? ' is-selected' : ''}"
+            role="option"
+            aria-selected="${selected}"
+            data-theme-id="${t.id}"
+            aria-label="Тема: ${t.name}"
+          >
+            <span class="theme-swatch" style="background:linear-gradient(135deg,${t.vars['--bg-deep']},${t.vars['--paper']})" aria-hidden="true"></span>
+            <span class="theme-card-body">
+              <strong>${t.name}</strong>
+              <span>${t.description}</span>
+            </span>
+          </button>
+        `;
+      })
+      .join('');
+
+    grid.querySelectorAll<HTMLButtonElement>('[data-theme-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.themeId;
+        if (!id) return;
+        try {
+          const theme = this.themes.apply(id);
+          this.settings.themeId = theme.id;
+          this.persistSettings();
+          this.renderThemeGrid();
+          this.showToast(`Тема: ${theme.name}`);
+        } catch (err) {
+          this.showToast(toUserMessage(err), true);
+        }
+      });
+    });
+  }
+
+  private refreshSessionUi(): void {
+    const snap = this.session.getSnapshot();
+    const set = (sel: string, value: string) => {
+      const el = this.root.querySelector(sel);
+      if (el) el.textContent = value;
+    };
+    set('#stats-elapsed', WritingSessionStats.formatDuration(snap.elapsedMs));
+    set('#stats-active', WritingSessionStats.formatDuration(snap.activeMs));
+    set('#stats-wpm', String(snap.wpm));
+    set('#stats-cpm', String(snap.cpm));
+    set('#stats-chars-typed', String(snap.charsTyped));
+    set('#stats-words-now', String(snap.wordsNow));
+  }
+
+  private startStatsTicker(): void {
+    this.stopStatsTicker();
+    this.refreshSessionUi();
+    this.statsUiTimer = setInterval(() => this.refreshSessionUi(), 1000);
+  }
+
+  private stopStatsTicker(): void {
+    if (this.statsUiTimer) {
+      clearInterval(this.statsUiTimer);
+      this.statsUiTimer = null;
+    }
+  }
+
   private openModal(id: string): void {
     const el = this.must(`#${id}`);
     el.hidden = false;
@@ -550,6 +705,13 @@ export class App {
     if (id === 'modal-link') {
       window.setTimeout(() => this.must<HTMLInputElement>('#link-url').focus(), 50);
     }
+    if (id === 'modal-stats') {
+      this.session.recordText(this.editor.value);
+      this.startStatsTicker();
+    }
+    if (id === 'modal-themes') {
+      this.renderThemeGrid();
+    }
   }
 
   private closeModal(id: string): void {
@@ -557,6 +719,7 @@ export class App {
     if (!el) return;
     el.classList.remove('is-open');
     (el as HTMLElement).hidden = true;
+    if (id === 'modal-stats') this.stopStatsTicker();
   }
 
   private showToast(message: string, isError = false): void {
@@ -570,6 +733,7 @@ export class App {
   }
 
   destroy(): void {
+    this.stopStatsTicker();
     this.sound.destroy();
     this.pomodoro.destroy();
     this.stats.destroy();
