@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite';
 
+/** Для GitHub Pages: VITE_BASE=/typewriter-fm-focus-writer/ */
+const base = process.env.VITE_BASE || '/';
+
 export default defineConfig({
+  base,
   root: '.',
   publicDir: 'public',
   build: {

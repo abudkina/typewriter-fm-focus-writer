@@ -33,9 +33,13 @@ npm install
 npm run dev
 ```
 
-Откройте в браузере адрес, который покажет Vite (по умолчанию `http://127.0.0.1:8765`).
+Откройте **только** адрес Vite: `http://127.0.0.1:8765`
 
-Сборка:
+Не открывайте `index.html` двойным щелчком и не через Live Server — будет ошибка `main.ts 404`. Нужен именно `npm run dev`.
+
+Онлайн: https://abudkina.github.io/typewriter-fm-focus-writer/
+
+Сборка локально:
 
 ```bash
 npm run build
