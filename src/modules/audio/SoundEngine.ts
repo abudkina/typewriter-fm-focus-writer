@@ -116,6 +116,10 @@ export class SoundEngine {
     }
   }
 
+  isReady(): boolean {
+    return this.ready;
+  }
+
   unlock(): void {
     if (this.unlocked || !this.ready) return;
     this.unlocked = true;
@@ -193,6 +197,18 @@ export class SoundEngine {
     if (this.muted || !this.paper) return;
     this.paper.volume(this.baseVolume * 0.6);
     this.paper.play();
+  }
+
+  /** Короткий образец звука текущей машинки (после смены модели) */
+  playSample(): void {
+    if (!this.ready || this.muted) return;
+    this.unlock();
+    const pack = this.sounds.get(this.currentModelId);
+    if (!pack) return;
+    pack.key.stop();
+    pack.key.rate(1);
+    pack.key.volume(this.baseVolume);
+    pack.key.play();
   }
 
   playForKey(key: string): void {

@@ -85,6 +85,7 @@ export class App {
     });
     this.bindEvents();
     this.applyStoredTheme();
+    this.fillModelSelect();
     this.runPaperIntro();
     // Звук и текстура — только после первого жеста (не блокирует Lighthouse TBT)
     const unlockHeavy = () => {
@@ -364,9 +365,13 @@ export class App {
       const id = (e.target as HTMLSelectElement).value;
       void (async () => {
         try {
+          if (!this.sound.isReady()) {
+            await this.initAudioAndEffects();
+          }
           await this.sound.setModel(id);
           this.settings.modelId = id;
           this.persistSettings();
+          this.sound.playSample();
           this.showToast(`Машинка: ${this.sound.models.find((m) => m.id === id)?.name ?? id}`);
         } catch (err) {
           this.fillModelSelect();
