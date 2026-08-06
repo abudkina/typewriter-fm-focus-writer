@@ -11,9 +11,9 @@
   --ok: #4a6b3c;
   --border: rgba(166, 124, 82, 0.35);
   --shadow: rgba(0, 0, 0, 0.45);
-  --font-ui: 'IBM Plex Mono', 'Consolas', 'Lucida Console', monospace;
-  --font-type: 'Special Elite', 'American Typewriter', 'Courier New', cursive;
-  --font-alt: 'Courier New', 'Courier', monospace;
+  --font-ui: 'IBM Plex Mono', monospace;
+  --font-type: 'Special Elite', serif;
+  --font-alt: 'Courier Prime', monospace;
   --radius: 2px;
   --toolbar-h: 52px;
   --status-h: 40px;
@@ -340,14 +340,37 @@ button:disabled {
   outline: none;
   position: relative;
   z-index: 3;
+  letter-spacing: 0.02em;
+}
+
+.editor.font-special {
+  font-family: var(--font-type);
+  letter-spacing: 0.04em;
 }
 
 .editor.font-courier {
   font-family: var(--font-alt);
+  letter-spacing: 0;
+  font-weight: 400;
 }
 
 .editor.font-plex {
   font-family: var(--font-ui);
+  letter-spacing: -0.01em;
+  font-weight: 400;
+}
+
+/* Превью шрифта в списке (Chrome, Firefox; в Windows select — частично) */
+.select-wrap select option[value='special'] {
+  font-family: 'Special Elite', serif;
+}
+
+.select-wrap select option[value='courier'] {
+  font-family: 'Courier Prime', monospace;
+}
+
+.select-wrap select option[value='plex'] {
+  font-family: 'IBM Plex Mono', monospace;
 }
 
 .paper-stage.is-shaking .editor {

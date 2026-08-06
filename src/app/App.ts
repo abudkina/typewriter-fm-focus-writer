@@ -171,7 +171,7 @@ export class App {
           <label for="editor" class="sr-only">Поле текста</label>
           <textarea
             id="editor"
-            class="editor"
+            class="editor font-special"
             spellcheck="true"
             lang="ru"
             placeholder="Начните печатать… Отвлечения остались за дверью."
@@ -543,9 +543,14 @@ export class App {
   }
 
   private applyFont(font: FontId): void {
-    this.editor.classList.remove('font-courier', 'font-plex');
-    if (font === 'courier') this.editor.classList.add('font-courier');
-    if (font === 'plex') this.editor.classList.add('font-plex');
+    this.editor.classList.remove('font-special', 'font-courier', 'font-plex');
+    if (font === 'courier') {
+      this.editor.classList.add('font-courier');
+    } else if (font === 'plex') {
+      this.editor.classList.add('font-plex');
+    } else {
+      this.editor.classList.add('font-special');
+    }
   }
 
   private async onImport(e: Event): Promise<void> {

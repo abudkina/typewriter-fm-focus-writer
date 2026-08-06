@@ -1,3 +1,6 @@
+import '@fontsource/special-elite/400.css';
+import '@fontsource/courier-prime/400.css';
+import '@fontsource/ibm-plex-mono/400.css';
 import './styles/main.css';
 import { App } from './app/App';
 import { logger } from './utils/logger';
