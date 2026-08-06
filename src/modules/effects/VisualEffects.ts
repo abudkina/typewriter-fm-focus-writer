@@ -1,6 +1,5 @@
 /**
- * Визуальные эффекты «грязных чернил» через OffscreenCanvas (если доступен)
- * или обычный canvas. Результат — CSS-паттерн / data-URL для фона бумаги.
+ * Визуальные эффекты: дрожание каретки и «грязные» чернила.
  */
 import { logger } from '../../utils/logger';
 
@@ -37,24 +36,23 @@ function paintInk(
   height: number
 ): void {
   ctx.clearRect(0, 0, width, height);
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 220; i++) {
     const x = Math.random() * width;
     const y = Math.random() * height;
-    const r = 0.4 + Math.random() * 2.2;
-    const alpha = 0.03 + Math.random() * 0.08;
+    const r = 0.6 + Math.random() * 3.5;
+    const alpha = 0.06 + Math.random() * 0.14;
     ctx.beginPath();
-    ctx.fillStyle = `rgba(40, 28, 18, ${alpha})`;
+    ctx.fillStyle = `rgba(35, 24, 14, ${alpha})`;
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
   }
-  // Лёгкие горизонтальные «смазы»
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 14; i++) {
     const y = Math.random() * height;
-    ctx.strokeStyle = `rgba(60, 40, 20, ${0.02 + Math.random() * 0.04})`;
-    ctx.lineWidth = 0.5 + Math.random();
+    ctx.strokeStyle = `rgba(50, 32, 16, ${0.05 + Math.random() * 0.08})`;
+    ctx.lineWidth = 0.8 + Math.random() * 1.8;
     ctx.beginPath();
     ctx.moveTo(0, y);
-    ctx.lineTo(width, y + (Math.random() - 0.5) * 4);
+    ctx.lineTo(width, y + (Math.random() - 0.5) * 6);
     ctx.stroke();
   }
 }
@@ -68,12 +66,25 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-/** Класс дрожания букв на контейнере редактора */
+/** Дрожание бумаги + вспышка чернильного пятна */
 export function applyTypeShake(el: HTMLElement, intensity = 1): void {
-  el.classList.remove('is-shaking');
-  // Перезапуск анимации
+  const clamped = Math.min(2.5, Math.max(0.8, intensity));
+  el.style.setProperty('--shake-intensity', String(clamped));
+
+  el.classList.remove('is-shaking', 'is-ink-flash');
+  // Force reflow — перезапуск CSS-анимации
   void el.offsetWidth;
-  el.style.setProperty('--shake-intensity', String(intensity));
-  el.classList.add('is-shaking');
-  window.setTimeout(() => el.classList.remove('is-shaking'), 120);
+  el.classList.add('is-shaking', 'is-ink-flash');
+
+  window.setTimeout(() => {
+    el.classList.remove('is-shaking');
+  }, 180);
+  window.setTimeout(() => {
+    el.classList.remove('is-ink-flash');
+  }, 220);
+}
+
+/** Включить/выключить слой чернил на бумаге */
+export function setInkLayerVisible(el: HTMLElement, visible: boolean): void {
+  el.classList.toggle('has-ink-effects', visible);
 }

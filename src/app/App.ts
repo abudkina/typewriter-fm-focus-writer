@@ -5,7 +5,7 @@ import { storage } from '../modules/storage/StorageService';
 import { StatsWorkerClient } from '../modules/stats/StatsWorkerClient';
 import { WritingSessionStats } from '../modules/stats/WritingSessionStats';
 import { ThemeService } from '../modules/themes/ThemeService';
-import { applyTypeShake, createInkTexture } from '../modules/effects/VisualEffects';
+import { applyTypeShake, createInkTexture, setInkLayerVisible } from '../modules/effects/VisualEffects';
 import { logger } from '../utils/logger';
 import { toUserMessage } from '../utils/errors';
 import { validateTextFile, validateUrl } from '../utils/validation';
@@ -51,6 +51,7 @@ export class App {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private statsUiTimer: ReturnType<typeof setInterval> | null = null;
+  private lastShakeAt = 0;
 
   private editor!: HTMLTextAreaElement;
   private wordEl!: HTMLElement;
@@ -95,17 +96,21 @@ export class App {
     };
     document.addEventListener('pointerdown', unlockHeavy, { once: true });
     document.addEventListener('keydown', unlockHeavy, { once: true });
-    // Фоновая текстура без звука — в idle
-    const defer =
-      typeof requestIdleCallback === 'function'
-        ? (fn: () => void) => requestIdleCallback(() => fn(), { timeout: 2500 })
-        : (fn: () => void) => setTimeout(fn, 1500);
-    defer(() => {
-      void createInkTexture(96, 96).then((texture) => {
-        if (texture) this.paperStage.style.setProperty('--ink-texture', `url(${texture})`);
-      });
-    });
+    // Текстура чернил — сразу после старта (эффекты должны быть видны)
+    void this.ensureInkTexture();
     logger.info('Приложение запущено');
+  }
+
+  private async ensureInkTexture(): Promise<void> {
+    try {
+      const texture = await createInkTexture(256, 256);
+      if (texture) {
+        this.paperStage.style.setProperty('--ink-texture', `url("${texture}")`);
+      }
+      setInkLayerVisible(this.paperStage, this.settings.effects);
+    } catch (err) {
+      logger.warn('Текстура чернил недоступна', err);
+    }
   }
 
   private renderShell(): void {
@@ -286,6 +291,7 @@ export class App {
     const effectsBtn = this.must<HTMLButtonElement>('#btn-effects');
     effectsBtn.setAttribute('aria-pressed', String(this.settings.effects));
     effectsBtn.classList.toggle('is-active', this.settings.effects);
+    setInkLayerVisible(this.paperStage, this.settings.effects);
 
     this.updatePremiumBadge();
   }
@@ -415,7 +421,12 @@ export class App {
       const btn = this.must<HTMLButtonElement>('#btn-effects');
       btn.setAttribute('aria-pressed', String(this.settings.effects));
       btn.classList.toggle('is-active', this.settings.effects);
+      setInkLayerVisible(this.paperStage, this.settings.effects);
       this.persistSettings();
+      if (this.settings.effects) {
+        void this.ensureInkTexture();
+        applyTypeShake(this.paperStage, 2);
+      }
       this.showToast(this.settings.effects ? 'Эффекты включены' : 'Эффекты выключены');
     });
 
@@ -472,13 +483,21 @@ export class App {
     document.addEventListener('keydown', unlock);
   }
 
+  private triggerEffects(intensity = 1.2): void {
+    if (!this.settings.effects) return;
+    const now = Date.now();
+    if (now - this.lastShakeAt < 45) return;
+    this.lastShakeAt = now;
+    applyTypeShake(this.paperStage, intensity);
+  }
+
   private onKeyDown(e: KeyboardEvent): void {
     if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
     try {
       this.sound.playForKey(e.key);
-      if (this.settings.effects && (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace')) {
-        const intensity = Math.min(2, 0.6 + this.sound.dynamics.getCpm() / 300);
-        applyTypeShake(this.paperStage, intensity);
+      if (e.key.length === 1 || e.key === 'Enter' || e.key === 'Backspace') {
+        const intensity = Math.min(2.4, 1 + this.sound.dynamics.getCpm() / 250);
+        this.triggerEffects(intensity);
       }
     } catch (err) {
       logger.warn('Ошибка воспроизведения', err);
@@ -487,6 +506,7 @@ export class App {
 
   private onInput(): void {
     this.session.recordText(this.editor.value);
+    this.triggerEffects(1.3);
     if (this.must('#modal-stats').classList.contains('is-open')) {
       this.refreshSessionUi();
     }

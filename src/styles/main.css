@@ -261,16 +261,25 @@ button:disabled {
   width: min(100%, 720px);
   height: 100%;
   min-height: calc(100dvh - var(--toolbar-h) - var(--status-h) - 1.5rem);
-  background:
-    var(--ink-texture, none),
-    linear-gradient(180deg, #f7f0e2 0%, var(--paper) 40%, #ebe0c8 100%);
-  background-blend-mode: multiply, normal;
+  background-color: var(--paper);
+  background-image: linear-gradient(180deg, #f7f0e2 0%, var(--paper) 40%, #ebe0c8 100%);
+  background-repeat: no-repeat;
+  background-size: cover;
   box-shadow:
     0 0 0 1px var(--paper-edge),
     0 12px 40px var(--shadow),
     inset 0 0 80px rgba(120, 90, 50, 0.06);
   position: relative;
   overflow: hidden;
+}
+
+.paper-stage.has-ink-effects {
+  background-image:
+    var(--ink-texture, none),
+    linear-gradient(180deg, #f7f0e2 0%, var(--paper) 40%, #ebe0c8 100%);
+  background-repeat: repeat, no-repeat;
+  background-size: 220px 220px, cover;
+  background-blend-mode: multiply, normal;
 }
 
 .paper-stage::before {
@@ -282,6 +291,37 @@ button:disabled {
   width: 1px;
   background: rgba(200, 80, 70, 0.25);
   pointer-events: none;
+  z-index: 1;
+}
+
+/* Вспышка «грязных чернил» при ударе клавиши */
+.paper-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  background:
+    radial-gradient(circle at 55% 42%, rgba(40, 28, 18, 0.14), transparent 42%),
+    radial-gradient(circle at 48% 58%, rgba(30, 20, 12, 0.1), transparent 36%);
+  transition: opacity 0.05s linear;
+}
+
+.paper-stage.is-ink-flash::after {
+  opacity: 1;
+  animation: ink-flash 0.22s ease-out;
+}
+
+@keyframes ink-flash {
+  0% {
+    opacity: 0.85;
+    transform: scale(1.01);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
 }
 
 .editor {
@@ -298,6 +338,8 @@ button:disabled {
   padding: 2.5rem 8% 3rem 14%;
   caret-color: var(--ink);
   outline: none;
+  position: relative;
+  z-index: 3;
 }
 
 .editor.font-courier {
@@ -309,7 +351,7 @@ button:disabled {
 }
 
 .paper-stage.is-shaking .editor {
-  animation: type-shake 0.1s linear;
+  animation: type-shake 0.18s linear;
 }
 
 @keyframes type-shake {
@@ -317,16 +359,22 @@ button:disabled {
   100% {
     transform: translate(0, 0);
   }
-  25% {
+  20% {
     transform: translate(
-      calc(var(--shake-intensity) * -0.4px),
-      calc(var(--shake-intensity) * 0.3px)
+      calc(var(--shake-intensity) * -2.4px),
+      calc(var(--shake-intensity) * 1.6px)
     );
   }
-  75% {
+  45% {
     transform: translate(
-      calc(var(--shake-intensity) * 0.35px),
-      calc(var(--shake-intensity) * -0.25px)
+      calc(var(--shake-intensity) * 2.2px),
+      calc(var(--shake-intensity) * -1.4px)
+    );
+  }
+  70% {
+    transform: translate(
+      calc(var(--shake-intensity) * -1.4px),
+      calc(var(--shake-intensity) * 1.1px)
     );
   }
 }
@@ -585,7 +633,6 @@ button:disabled {
 
 @media (prefers-reduced-motion: reduce) {
   .paper-sheet,
-  .paper-stage.is-shaking .editor,
   .toast,
   .modal-backdrop,
   .paper-loader {
@@ -595,5 +642,20 @@ button:disabled {
 
   .paper-sheet {
     transform: none;
+  }
+
+  /* Дрожание ослабляем, но вспышку чернил оставляем заметной */
+  .paper-stage.is-shaking .editor {
+    animation: type-shake 0.12s linear;
+  }
+
+  @keyframes type-shake {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    50% {
+      transform: translate(-1px, 0.5px);
+    }
   }
 }
