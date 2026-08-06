@@ -363,6 +363,8 @@ export class App {
 
     this.must('#model-select').addEventListener('change', (e) => {
       const id = (e.target as HTMLSelectElement).value;
+      // Важно: разблокировать аудио СИНХРОННО в жесте, до await
+      this.sound.unlock();
       void (async () => {
         try {
           if (!this.sound.isReady()) {
@@ -371,7 +373,7 @@ export class App {
           await this.sound.setModel(id);
           this.settings.modelId = id;
           this.persistSettings();
-          this.sound.playSample();
+          await this.sound.playSample();
           this.showToast(`Машинка: ${this.sound.models.find((m) => m.id === id)?.name ?? id}`);
         } catch (err) {
           this.fillModelSelect();

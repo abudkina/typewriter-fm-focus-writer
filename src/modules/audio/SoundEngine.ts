@@ -87,6 +87,9 @@ export class SoundEngine {
         this.models.find((m) => !m.premium)!;
       this.currentModelId = primary.id;
       await this.buildModelAsync(primary, true);
+      // Предзагрузка остальных бесплатных — смена модели без ожидания синтеза
+      const freeRest = this.models.filter((m) => !m.premium && m.id !== primary.id);
+      await Promise.all(freeRest.map((m) => this.buildModelAsync(m)));
       this.ready = true;
       logger.info('Звуковой движок готов', { models: this.sounds.size });
     } catch (err) {
@@ -98,21 +101,42 @@ export class SoundEngine {
     }
   }
 
+  private createHowl(src: string, volume = 1): Promise<Howl> {
+    return new Promise((resolve, reject) => {
+      const howl = new Howl({
+        src: [src],
+        volume,
+        preload: true,
+        onload: () => resolve(howl),
+        onloaderror: (_id, err) => {
+          logger.error('Ошибка загрузки звука', err);
+          reject(new AppError('AUDIO_LOAD', 'Не удалось загрузить звук машинки.'));
+        },
+      });
+      if (howl.state() === 'loaded') {
+        resolve(howl);
+      }
+    });
+  }
+
   private async buildModelAsync(model: TypewriterModel, includeExtras = false): Promise<void> {
+    if (this.sounds.has(model.id) && !includeExtras) return;
+
     const timbre: TypewriterTimbre = {
       basePitch: model.basePitch,
       noiseAmount: model.noiseAmount,
       clickSharpness: model.clickSharpness,
     };
     const pack = await this.synthPack(timbre, includeExtras);
-    this.sounds.set(model.id, {
-      key: new Howl({ src: [pack.key], volume: 1 }),
-      space: new Howl({ src: [pack.space], volume: 1 }),
-      return: new Howl({ src: [pack.return], volume: 1 }),
-    });
+    const [key, space, ret] = await Promise.all([
+      this.createHowl(pack.key),
+      this.createHowl(pack.space),
+      this.createHowl(pack.return),
+    ]);
+    this.sounds.set(model.id, { key, space, return: ret });
     if (includeExtras && pack.breath && pack.paper) {
-      this.breath = new Howl({ src: [pack.breath], volume: 0.12 });
-      this.paper = new Howl({ src: [pack.paper], volume: 0.55 });
+      this.breath = await this.createHowl(pack.breath, 0.12);
+      this.paper = await this.createHowl(pack.paper, 0.55);
     }
   }
 
@@ -120,16 +144,46 @@ export class SoundEngine {
     return this.ready;
   }
 
+  /**
+   * Разблокировка AudioContext синхронно в обработчике жеста
+   * (до любых await — иначе браузер блокирует play).
+   */
   unlock(): void {
-    if (this.unlocked || !this.ready) return;
+    this.ensureAudioContext();
+    void this.resumeContext();
+    if (this.unlocked) return;
     this.unlocked = true;
-    const pack = this.sounds.get(this.currentModelId);
-    if (pack) {
-      pack.key.volume(0);
-      pack.key.play();
-      pack.key.volume(1);
-    }
     logger.info('Аудиоразблокировка выполнена');
+  }
+
+  /** Гарантирует наличие AudioContext до первого Howl (тихий data-URI) */
+  private ensureAudioContext(): void {
+    if (Howler.ctx) return;
+    try {
+      // Минимальный валидный WAV (тишина)
+      const silent =
+        'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+      const h = new Howl({ src: [silent], volume: 0, preload: true });
+      h.once('load', () => {
+        const id = h.play();
+        h.stop(id);
+      });
+      h.play();
+    } catch (err) {
+      logger.warn('Не удалось создать AudioContext', err);
+    }
+  }
+
+  private async resumeContext(): Promise<void> {
+    this.ensureAudioContext();
+    const ctx = Howler.ctx as AudioContext | undefined;
+    if (ctx && ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch (err) {
+        logger.warn('Не удалось возобновить AudioContext', err);
+      }
+    }
   }
 
   setPremium(hasPremium: boolean): void {
@@ -157,21 +211,6 @@ export class SoundEngine {
     this.currentModelId = id;
   }
 
-  /** Синхронный выбор уже загруженной модели (для настроек) */
-  setModelSync(id: string): void {
-    const model = this.models.find((m) => m.id === id);
-    if (!model) {
-      throw new AppError('MODEL_UNKNOWN', 'Неизвестная модель машинки.');
-    }
-    if (model.premium && !this.hasPremium) {
-      throw new AppError(
-        'PREMIUM_REQUIRED',
-        'Эта машинка доступна по подписке. Оформите премиум за 2 $/мес.'
-      );
-    }
-    this.currentModelId = id;
-  }
-
   getModelId(): string {
     return this.currentModelId;
   }
@@ -195,20 +234,48 @@ export class SoundEngine {
 
   playPaperFeed(): void {
     if (this.muted || !this.paper) return;
+    void this.resumeContext();
     this.paper.volume(this.baseVolume * 0.6);
     this.paper.play();
   }
 
-  /** Короткий образец звука текущей машинки (после смены модели) */
-  playSample(): void {
-    if (!this.ready || this.muted) return;
-    this.unlock();
+  /**
+   * Образец звука после смены модели.
+   * Сначала resume контекста, затем play загруженного Howl.
+   */
+  async playSample(): Promise<void> {
+    if (this.muted) return;
+    await this.resumeContext();
+    this.unlocked = true;
+
     const pack = this.sounds.get(this.currentModelId);
-    if (!pack) return;
-    pack.key.stop();
-    pack.key.rate(1);
-    pack.key.volume(this.baseVolume);
-    pack.key.play();
+    if (!pack) {
+      logger.warn('Нет звуков для образца', { id: this.currentModelId });
+      return;
+    }
+
+    const howl = pack.key;
+    if (howl.state() !== 'loaded') {
+      await new Promise<void>((resolve, reject) => {
+        const t = window.setTimeout(() => reject(new Error('load timeout')), 3000);
+        howl.once('load', () => {
+          clearTimeout(t);
+          resolve();
+        });
+        howl.once('loaderror', () => {
+          clearTimeout(t);
+          reject(new Error('load error'));
+        });
+      }).catch((err) => {
+        logger.warn('Образец не загрузился', err);
+      });
+    }
+
+    howl.stop();
+    howl.rate(1);
+    howl.volume(Math.max(0.55, this.baseVolume));
+    const playId = howl.play();
+    logger.info('Образец машинки', { id: this.currentModelId, playId, state: howl.state() });
   }
 
   playForKey(key: string): void {
